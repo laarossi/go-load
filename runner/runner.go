@@ -1,4 +1,4 @@
-package main
+package goload
 
 import "time"
 
@@ -15,14 +15,15 @@ const (
 )
 
 type Execution struct {
-	duration   time.Duration
-	initialVus int
-	timepoints map[string]int
+	Duration   time.Duration
+	InitialVUs int
+	Timepoints map[string]int
 }
 
 type Config struct {
 	Method        HttpMethod
 	URI           string
+	UserAgent     string
 	Vus           int
 	Timeout       time.Duration
 	Log           bool
