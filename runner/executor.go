@@ -1,10 +1,13 @@
 package goload
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"sync"
 	"time"
@@ -96,14 +99,14 @@ func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGr
 		}
 		var resp *http.Response
 		var respErr error
-		if config.Method == "" {
+		if config.Request.Method == "" {
 			panic("provide a valid http method")
 		}
-		req, reqErr := http.NewRequest(string(config.Method), config.URI, nil)
+		req, reqErr := http.NewRequest(string(config.Request.Method), config.Request.URI, nil)
 		if reqErr != nil {
 			panic(reqErr)
 		}
-		req.Header.Set("User-Agent", config.UserAgent)
+		req.Header.Set("User-Agent", string(config.Request.UserAgent))
 		resp, respErr = httpClient.Do(req)
 		if respErr != nil {
 			panic(respErr)
@@ -111,20 +114,83 @@ func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGr
 		defer resp.Body.Close()
 		respTime := time.Since(startTime)
 		*respStats = append(*respStats, float32(respTime.Seconds()))
-		safeFileWriter.write(fmt.Sprintf("[%s][vu-%d] %s::%s resp(%s) status(%d)\n",
+		reason, match := validateResponse(resp, config.Response)
+		var validString string
+		if match == true {
+			validString = "MATCH"
+		} else {
+			validString = "NO MATCH - " + reason
+		}
+		safeFileWriter.write(fmt.Sprintf("[%s][vu-%d] %s::%s resp(%.2fs) status(%d) %s\n",
 			time.Now().Format("2006-01-02 15:04:05"),
 			vuId,
-			config.Method,
-			config.URI,
-			respTime,
-			resp.StatusCode))
+			config.Request.Method,
+			config.Request.URI,
+			respTime.Seconds(),
+			resp.StatusCode,
+			validString))
 	}
 }
 
 func printConfig(config Config) {
 	fmt.Println("Executing loading test for the following config :")
-	fmt.Printf("Method: %v\n", config.Method)
-	fmt.Printf("URI: %s\n", config.URI)
+	fmt.Printf("Method: %v\n", config.Request.Method)
+	fmt.Printf("URI: %s\n", config.Request.URI)
 	fmt.Printf("Logging enabled: %v\n", config.Log)
 	fmt.Println("Logging output path: " + config.LogOutputPath)
+}
+
+func validateResponse(response *http.Response, expectedResponse Response) (string, bool) {
+	if response.StatusCode != expectedResponse.StatusCode {
+		return fmt.Sprintf("http status %d, expected http status %d", response.StatusCode, expectedResponse.StatusCode), false
+	}
+
+	if len(expectedResponse.Headers) > 0 && len(response.Header) >= len(expectedResponse.Headers) {
+		for _, header := range expectedResponse.Headers {
+			if response.Header.Get(header.Get("key")) != header.Get("value") {
+				return fmt.Sprintf("header %s, expected header %s", response.Header.Get(header.Get("key")), header.Get("value")), false
+			}
+		}
+	}
+
+	if len(expectedResponse.Cookies) > 0 && len(response.Cookies()) >= len(expectedResponse.Cookies) {
+		for _, expectedCookie := range expectedResponse.Cookies {
+			found := false
+			for _, respCookie := range response.Cookies() {
+				if respCookie.Name == expectedCookie.Name {
+					found = true
+					if respCookie.Value != expectedCookie.Value {
+						return fmt.Sprintf("cookie %s=%s, expected cookie %s=%s", respCookie.Name, respCookie.Value, expectedCookie.Name, expectedCookie.Value), false
+					}
+				}
+			}
+			if !found {
+				return fmt.Sprintf("cookie %s=%s not found in response", expectedCookie.Name, expectedCookie.Value), false
+			}
+		}
+	}
+
+	if expectedResponse.Body != "" {
+		if response.Body == nil {
+			return "body not matching, empty response", false
+		}
+		defer response.Body.Close()
+		var expectedJSON, responseJSON interface{}
+
+		err1 := json.Unmarshal([]byte(expectedResponse.Body), &expectedJSON)
+		responseJSONString, err2 := io.ReadAll(response.Body)
+		if err2 != nil {
+			panic(err2)
+		}
+		err2 = json.Unmarshal(responseJSONString, &responseJSON)
+		if err1 != nil || err2 != nil {
+			return "Unable to parse string", false // Invalid JSON
+		}
+
+		if !reflect.DeepEqual(expectedJSON, responseJSON) {
+			return "JSON response does not match expected response", false
+		}
+	}
+
+	return "", true
 }
