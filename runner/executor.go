@@ -23,7 +23,8 @@ func (sw *SafeFileWriter) write(data string) (int, error) {
 
 func Execute(config Config) {
 	printConfig(config)
-	logFilename := "execution-" + time.Now().Format("2006-08-12-15-04-30") + ".log"
+	fmt.Println("Starting execution...")
+	logFilename := "execution-" + time.Now().Format("2006-01-02-15:04:05") + ".log"
 	fmt.Println("creating log file : " + logFilename)
 	if config.LogOutputPath != "" {
 		err := os.MkdirAll(config.LogOutputPath, 0755)
@@ -56,14 +57,25 @@ func Execute(config Config) {
 			DisableCompression: true,
 		},
 	}
+
 	respStats := []float32{}
-	for i := 0; i < config.Vus; i++ {
-		waitingGroup.Add(1)
-		go execute(i, config, &waitingGroup, httpClient, &safeWriter, &respStats)
+	for timepointIndex := 0; timepointIndex < len(config.Timepoints); timepointIndex++ {
+		fmt.Println("Starting timepoint " + fmt.Sprint(timepointIndex) + " at " + time.Now().Format("15:04:05"))
+		startTime := time.Now()
+		for j := 0; j < config.Timepoints[timepointIndex].TargetVu; j++ {
+			waitingGroup.Add(1)
+			go execute(j, timepointIndex, config, &waitingGroup, httpClient, &safeWriter, &respStats)
+		}
+		for {
+			endTime := time.Now()
+			if endTime.After(startTime.Add(config.Timepoints[timepointIndex].Duration)) || endTime.Equal(startTime.Add(config.Timepoints[timepointIndex].Duration)) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 
 	waitingGroup.Wait()
-
 	sort.Slice(respStats, func(i, j int) bool { return respStats[i] < respStats[j] })
 	percentiles := []float64{70, 80, 90, 95, 99}
 	for _, p := range percentiles {
@@ -72,14 +84,14 @@ func Execute(config Config) {
 	}
 }
 
-func execute(vuId int, config Config, waitingGroup *sync.WaitGroup, httpClient *http.Client, safeFileWriter *SafeFileWriter, respStats *[]float32) {
+func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGroup, httpClient *http.Client, safeFileWriter *SafeFileWriter, respStats *[]float32) {
 	fmt.Println("Executing VU[" + fmt.Sprint(vuId) + "]")
 	defer waitingGroup.Done()
-	endTime := time.Now().Add(config.Execution.Duration)
+	endTime := time.Now().Add(config.Timepoints[timepointId].Duration)
 	for {
 		startTime := time.Now()
 		if startTime.After(endTime) || startTime.Equal(endTime) {
-			fmt.Println("VU[" + fmt.Sprint(vuId) + "] finished")
+			fmt.Println("VU[" + fmt.Sprint(vuId) + "] finished executing timepoint " + fmt.Sprint(timepointId) + " at " + time.Now().Format("15:04:05"))
 			break
 		}
 		var resp *http.Response
@@ -99,10 +111,11 @@ func execute(vuId int, config Config, waitingGroup *sync.WaitGroup, httpClient *
 		defer resp.Body.Close()
 		respTime := time.Since(startTime)
 		*respStats = append(*respStats, float32(respTime.Seconds()))
-		safeFileWriter.write(fmt.Sprintf("[%s][vu-%d][%s] resp( %.3fs) status(%d)\n",
+		safeFileWriter.write(fmt.Sprintf("[%s][vu-%d] %s::%s resp(%s) status(%d)\n",
 			time.Now().Format("2006-01-02 15:04:05"),
 			vuId,
 			config.Method,
+			config.URI,
 			respTime,
 			resp.StatusCode))
 	}
@@ -112,9 +125,6 @@ func printConfig(config Config) {
 	fmt.Println("Executing loading test for the following config :")
 	fmt.Printf("Method: %v\n", config.Method)
 	fmt.Printf("URI: %s\n", config.URI)
-	fmt.Printf("VUs: %d\n", config.Vus)
 	fmt.Printf("Logging enabled: %v\n", config.Log)
-	fmt.Printf("Execution timepoint:\n")
-	fmt.Printf("  Duration: %v\n", config.Execution.Duration)
-	fmt.Printf("  Initial VUs: %d\n", config.Execution.InitialVUs)
+	fmt.Println("Logging output path: " + config.LogOutputPath)
 }
