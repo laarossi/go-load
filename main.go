@@ -8,12 +8,22 @@ import (
 func main() {
 	config := goload.Config{
 		Method:        goload.GET,
-		URI:           "https://www.google.com",
+		URI:           "http://localhost:8974/products/100",
 		UserAgent:     "PostmanRuntime/7.44.1",
 		LogOutputPath: "logs",
-		Vus:           2,
-		Execution: goload.Execution{
-			Duration: 2 * time.Second,
+		Timepoints: []goload.ExecutionTimepoint{
+			{
+				Duration: time.Second * 10,
+				TargetVu: 10,
+			},
+			{
+				Duration: time.Second * 10,
+				TargetVu: 5,
+			},
+			{
+				Duration: time.Second * 15,
+				TargetVu: 2,
+			},
 		},
 	}
 
