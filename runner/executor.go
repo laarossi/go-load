@@ -62,12 +62,13 @@ func Execute(config Config) {
 	}
 
 	respStats := []float32{}
+	success := []bool{}
 	for timepointIndex := 0; timepointIndex < len(config.Timepoints); timepointIndex++ {
 		fmt.Println("Starting timepoint " + fmt.Sprint(timepointIndex) + " at " + time.Now().Format("15:04:05"))
 		startTime := time.Now()
 		for j := 0; j < config.Timepoints[timepointIndex].TargetVu; j++ {
 			waitingGroup.Add(1)
-			go execute(j, timepointIndex, config, &waitingGroup, httpClient, &safeWriter, &respStats)
+			go execute(j, timepointIndex, config, &waitingGroup, httpClient, &safeWriter, &respStats, &success)
 		}
 		for {
 			endTime := time.Now()
@@ -81,13 +82,35 @@ func Execute(config Config) {
 	waitingGroup.Wait()
 	sort.Slice(respStats, func(i, j int) bool { return respStats[i] < respStats[j] })
 	percentiles := []float64{70, 80, 90, 95, 99}
-	for _, p := range percentiles {
-		idx := int(float64(len(respStats)-1) * p / 100)
-		fmt.Printf("P%.0f: %.3fs\n", p, respStats[idx])
-	}
+	fmt.Println("Execution finished at " + time.Now().Format("15:04:05"))
+	fmt.Println("Execution stats :")
+	fmt.Println("Response time stats :")
+	fmt.Println("   70th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[0])))
+	fmt.Println("   80th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[1])))
+	fmt.Println("   90th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[2])))
+	fmt.Println("   95th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[3])))
+	fmt.Println("   99th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[4])))
+	fmt.Println("Response success stats :")
+	fmt.Println("   70th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[0])))
+	fmt.Println("   80th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[1])))
+	fmt.Println("   90th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[2])))
+	fmt.Println("   95th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[3])))
+	fmt.Println("   99th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[4])))
 }
 
-func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGroup, httpClient *http.Client, safeFileWriter *SafeFileWriter, respStats *[]float32) {
+func percentileResponseTime(data []float32, percentile float64) float32 {
+	sort.Slice(data, func(i, j int) bool { return data[i] < data[j] })
+	idx := int(float64(len(data)-1) * percentile / 100)
+	return data[idx]
+}
+
+func percentileSuccess(data []bool, percentile float64) float64 {
+	sort.Slice(data, func(i, j int) bool { return data[i] && !data[j] })
+	idx := int(float64(len(data)-1) * percentile / 100)
+	return float64(idx)
+}
+
+func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGroup, httpClient *http.Client, safeFileWriter *SafeFileWriter, respStats *[]float32, success *[]bool) {
 	fmt.Println("Executing VU[" + fmt.Sprint(vuId) + "]")
 	defer waitingGroup.Done()
 	endTime := time.Now().Add(config.Timepoints[timepointId].Duration)
@@ -115,6 +138,7 @@ func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGr
 		respTime := time.Since(startTime)
 		*respStats = append(*respStats, float32(respTime.Seconds()))
 		reason, match := validateResponse(resp, config.Response)
+		*success = append(*success, match)
 		var validString string
 		if match == true {
 			validString = "MATCH"
