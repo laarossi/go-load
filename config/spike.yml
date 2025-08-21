@@ -1,0 +1,32 @@
+name: Test collection
+tests:
+  # SPIKE TESTING
+  - name: Spike testing
+    thresholds:
+      pass_if:
+        - metric: latency_ms.p95
+          target: "<=200"
+        - metric: error_rate_pct
+          target: "<=0.1"
+      fail_if:
+        - metric: availability
+          target: "<90%"
+    global:
+      timeout: 30s
+      retries: 5
+      retries_delay: 2s
+    request:
+      method: get
+      uri: localhost:8974/products/121
+      user_agent: chrome
+    response:
+      status_code: 200
+    phases:
+      - duration: 5s
+        target_vus: 10
+      - duration: 30s
+        target_vus: 30
+      - duration: 10s
+        target_vus: 5
+      - duration: 1m
+        target_vus: 30

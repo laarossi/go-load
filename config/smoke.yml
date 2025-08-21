@@ -1,0 +1,15 @@
+name: Test collection
+tests:
+  # SMOKE TESTING
+  - name: Smoke testing
+    global:
+      timeout: 30s
+      retries: 5
+      retries_delay: 2s
+    request:
+      method: get
+      uri: localhost:8974/products/121
+      user_agent: chrome
+    phases:
+      - name: Phase number 1
+        single_request: true
