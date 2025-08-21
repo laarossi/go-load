@@ -8,71 +8,68 @@ import (
 type HttpMethod string
 
 const (
-	GET    HttpMethod = "GET"
-	POST   HttpMethod = "POST"
-	PUT    HttpMethod = "PUT"
-	DELETE HttpMethod = "DELETE"
-	HEAD   HttpMethod = "HEAD"
-	PATCH  HttpMethod = "PATCH"
+	GET    HttpMethod = "get"
+	POST   HttpMethod = "post"
+	PUT    HttpMethod = "put"
+	DELETE HttpMethod = "delete"
+	HEAD   HttpMethod = "head"
+	PATCH  HttpMethod = "patch"
 )
-
-type Response struct {
-	StatusCode int
-	Body       string
-	Headers    []http.Header
-	Cookies    []http.Cookie
-}
-
-type Request struct {
-	Method    HttpMethod    `yaml:"method"`
-	URI       string        `yaml:"URI"`
-	UserAgent UserAgent     `yaml:"userAgent"`
-	Headers   http.Header   `yaml:"headers"`
-	Body      string        `yaml:"body"`
-	Cookies   []http.Cookie `yaml:"cookies"`
-}
 
 type UserAgent string
 
 const (
-	ChromeAgent  UserAgent = "Chrome"
-	FirefoxAgent UserAgent = "Firefox"
-	SafariAgent  UserAgent = "Safari"
-	EdgeAgent    UserAgent = "Edge"
-	OperaAgent   UserAgent = "Opera"
-	IEAgent      UserAgent = "IE"
-	AndroidAgent UserAgent = "Android"
-	IOSAgent     UserAgent = "IOS"
+	ChromeAgent  UserAgent = "chrome"
+	FirefoxAgent UserAgent = "firefox"
+	SafariAgent  UserAgent = "safari"
+	EdgeAgent    UserAgent = "edge"
+	OperaAgent   UserAgent = "opera"
+	IEAgent      UserAgent = "ie"
+	AndroidAgent UserAgent = "android"
+	IOSAgent     UserAgent = "ios"
 )
 
-type Config struct {
-	Test Test `yaml:"test"`
+type Response struct {
+	StatusCode int `yaml:"status_code,omitempty"`
+	Body       string
+	Duration   time.Duration
+	Headers    []http.Header `yaml:"headers,omitempty"`
+	Cookies    []http.Cookie `yaml:"cookies,omitempty"`
+	Error      error
+}
+
+type Request struct {
+	Method    HttpMethod    `yaml:"method"`
+	URI       string        `yaml:"uri"`
+	UserAgent UserAgent     `yaml:"user_agent"`
+	Headers   http.Header   `yaml:"headers"`
+	Body      string        `yaml:"body"`
+	Cookies   []http.Cookie `yaml:"cookies"`
+}
+type Collection struct {
+	Name  string `yaml:"name"`
+	Tests []Test `yaml:"tests"`
 }
 
 type Test struct {
-	Name   string  `yaml:"name"`
-	Global Global  `yaml:"global"`
-	Phases []Phase `yaml:"phases"`
+	Name    *string `yaml:"name"`
+	Global  *Global `yaml:"global,omitempty"`
+	Request Request `yaml:"request"`
+	Phases  []Phase `yaml:"phases"`
 }
 type Global struct {
-	Timeout   time.Duration `yaml:"timeout"`    // e.g., "30s"
-	Retries   int           `yaml:"retries"`    // Number of retries per request
-	ThinkTime time.Duration `yaml:"think_time"` // Delay between requests per VU
+	Timeout      time.Duration `yaml:"timeout,omitempty"` // e.g., "30s"
+	Retries      int           `yaml:"retries,omitempty"` // Number of retries per request
+	RetriesDelay time.Duration `yaml:"retries_delay,omitempty"`
+	ThinkTime    time.Duration `yaml:"think_time,omitempty"` // Delay between requests per VU
 }
 type Phase struct {
-	Name          string        `yaml:"name"`
-	Duration      time.Duration `yaml:"duration,omitempty"`
-	StartVUs      *int          `yaml:"start_vus,omitempty"`
-	EndVUs        *int          `yaml:"end_vus,omitempty"`
-	TargetVUs     *int          `yaml:"target_vus,omitempty"`
-	ReqsPerSecond *int          `yaml:"reqs_per_second,omitempty"`
-	Mode          string        `yaml:"mode,omitempty"`
-	Phases        []NestedPhase `yaml:"phases,omitempty"` // nested phases
-}
-type NestedPhase struct {
-	Phase     string        `yaml:"phase"`
-	Duration  time.Duration `yaml:"duration"`
-	TargetVUs int           `yaml:"target_vus"`
+	Name          *string        `yaml:"name"`
+	SingleRequest *bool          `yaml:"single_request,omitempty"`
+	Duration      *time.Duration `yaml:"duration,omitempty"`
+	StartVUs      *int           `yaml:"start_vus,omitempty"`
+	EndVUs        *int           `yaml:"end_vus,omitempty"`
+	TargetVUs     *int           `yaml:"target_vus,omitempty"`
 }
 
 type LogConfig struct {
