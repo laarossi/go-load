@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"reflect"
-	"sync"
 	"time"
 )
 
@@ -22,138 +19,58 @@ const logo = `
 	════════════════════════════════════════════════════`
 
 type Executor struct {
-	Log   LogConfig
-	Tests Test
+	Collection Collection
 }
 
-func (e Executor) Execute() {
-}
-
-func Execute(config Config) {
-
-	fmt.Print(logo + "\n\n\n")
-	printConfig(config)
-	fmt.Println("Starting execution...")
-	logFilename := "execution-" + time.Now().Format("2006-01-02-15:04:05") + ".log"
-	fmt.Println("creating log file : " + logFilename)
-	if config.LogOutputPath != "" {
-		err := os.MkdirAll(config.LogOutputPath, 0755)
-		if err != nil {
-			panic(err)
-		}
+func (e *Executor) Execute() {
+	fmt.Println(logo)
+	for _, test := range e.Collection.Tests {
+		e.executeTest(test)
 	}
-	file, err := os.Create(filepath.Join(config.LogOutputPath, logFilename))
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			fmt.Println(err)
+}
+
+func (e *Executor) executeTest(test Test) {
+	fmt.Println("configuring test: ", test.Name)
+	for _, phase := range test.Phases {
+		e.executePhase(phase, test.Request)
+	}
+}
+
+func (e *Executor) executePhase(phase Phase, request Request) {
+	fmt.Println("parsing phase configuration for ", phase.Name)
+	if phase.SingleRequest != nil && *phase.SingleRequest {
+		fmt.Println("executing single request")
+		response := e.executeRequest(request)
+		if response.Error != nil {
+			fmt.Println("error executing request: ", response.Error)
 		}
-	}(file)
+	} else {
+		fmt.Println("executing multiple requests")
+	}
+}
+
+func (e *Executor) executeRequest(request Request) Response {
+	client := http.Client{}
+	httpResponse := &http.Response{}
+	startTime := time.Now()
+	var err error
+	switch request.Method {
+	default:
+		httpResponse, err = client.Get(request.URI)
+	}
 	if err != nil {
-		panic(err)
+		return Response{Error: err}
 	}
-	safeWriter := SafeFileWriter{file: file, mu: sync.Mutex{}}
-	safeWriter.file.WriteString(logo + "\n\n\n")
-	_, err = safeWriter.file.WriteString("Starting execution at " + time.Now().Format("15:04:05") + "\n")
+	response := Response{
+		StatusCode: httpResponse.StatusCode,
+		Duration:   time.Since(startTime),
+	}
+	responseData, err := io.ReadAll(httpResponse.Body)
 	if err != nil {
-		return
+		return Response{Error: err}
 	}
-
-	var waitingGroup sync.WaitGroup
-	httpClient := &http.Client{
-		Timeout: config.Timeout,
-		Transport: &http.Transport{
-			MaxIdleConns:       10,
-			IdleConnTimeout:    30 * time.Second,
-			DisableCompression: true,
-		},
-	}
-
-	timepointExecutionStats := make([]TimepointExecutionStat, len(config.Timepoints), len(config.Timepoints))
-	for timepointIndex := 0; timepointIndex < len(config.Timepoints); timepointIndex++ {
-		fmt.Println("════════════════════════════════════════════════════")
-		fmt.Print("Starting timepoint " + fmt.Sprint(timepointIndex) + " at " + time.Now().Format("15:04:05"))
-		startTime := time.Now()
-		timepointExecutionStats[timepointIndex] = TimepointExecutionStat{
-			ExecutionTimepoint: config.Timepoints[timepointIndex],
-		}
-		for j := 0; j < config.Timepoints[timepointIndex].TargetVu; j++ {
-			waitingGroup.Add(1)
-			go execute(j, timepointIndex, config, &waitingGroup, httpClient, &safeWriter, &timepointExecutionStats[timepointIndex])
-		}
-		for {
-			endTime := time.Now()
-			if endTime.After(startTime.Add(config.Timepoints[timepointIndex].Duration)) || endTime.Equal(startTime.Add(config.Timepoints[timepointIndex].Duration)) {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-
-		fmt.Println("completed at " + time.Now().Format("15:04:05"))
-	}
-
-	waitingGroup.Wait()
-	fmt.Println("════════════════════════════════════════════════════")
-	fmt.Println("Execution completed at " + time.Now().Format("15:04:05"))
-	fmt.Println("════════════════════════════════════════════════════")
-	for i := 0; i < len(timepointExecutionStats); i++ {
-		fmt.Println("\nSummary for timepoint " + fmt.Sprint(i) + " : \n")
-		fmt.Println(timepointExecutionStats[i].printSuccessStats())
-		fmt.Println(timepointExecutionStats[i].printResponseTimeStats())
-		fmt.Println("════════════════════════════════════════════════════")
-	}
-}
-
-func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGroup, httpClient *http.Client, safeFileWriter *SafeFileWriter, stat *TimepointExecutionStat) {
-	defer waitingGroup.Done()
-	endTime := time.Now().Add(config.Timepoints[timepointId].Duration)
-	for {
-		startTime := time.Now()
-		if startTime.After(endTime) || startTime.Equal(endTime) {
-			break
-		}
-		var resp *http.Response
-		var respErr error
-		if config.Request.Method == "" {
-			panic("provide a valid http method")
-		}
-		req, reqErr := http.NewRequest(string(config.Request.Method), config.Request.URI, nil)
-		if reqErr != nil {
-			panic(reqErr)
-		}
-		req.Header.Set("User-Agent", string(config.Request.UserAgent))
-		resp, respErr = httpClient.Do(req)
-		if respErr != nil {
-			panic(respErr)
-		}
-		defer resp.Body.Close()
-		respTime := time.Since(startTime)
-		stat.ResponseTime = append(stat.ResponseTime, float32(respTime.Seconds()))
-		reason, match := validateResponse(resp, config.Response)
-		stat.Success = append(stat.Success, match)
-		var validString string
-		if match == true {
-			validString = "MATCH"
-		} else {
-			validString = "NO MATCH - " + reason
-		}
-		safeFileWriter.write(fmt.Sprintf("[%s][vu-%d] %s::%s resp(%.2fs) status(%d) %s\n",
-			time.Now().Format("2006-01-02 15:04:05"),
-			vuId,
-			config.Request.Method,
-			config.Request.URI,
-			respTime.Seconds(),
-			resp.StatusCode,
-			validString))
-	}
-}
-
-func printConfig(config Config) {
-	fmt.Println("Executing loading test for the following parser :")
-	fmt.Printf("Method: %v\n", config.Request.Method)
-	fmt.Printf("URI: %s\n", config.Request.URI)
-	fmt.Printf("Logging enabled: %v\n", config.Log)
-	fmt.Println("Logging output path: " + config.LogOutputPath)
+	response.Body = string(responseData)
+	return response
 }
 
 func validateResponse(response *http.Response, expectedResponse Response) (string, bool) {
