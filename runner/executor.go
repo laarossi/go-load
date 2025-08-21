@@ -8,23 +8,30 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"sync"
 	"time"
 )
 
-type SafeFileWriter struct {
-	file *os.File
-	mu   sync.Mutex
+const logo = `
+	 ██████╗  ██████╗ ██╗	  ██████╗  █████╗ ██████╗ 
+	██╔════╝ ██╔═══██╗██║	 ██╔═══██╗██╔══██╗██╔══██╗
+	██║  ███╗██║   ██║██║	 ██║   ██║███████║██║  ██║
+	██║   ██║██║   ██║██║	 ██║   ██║██╔══██║██║  ██║
+	╚██████╔╝╚██████╔╝███████╗╚██████╔╝██║  ██║██████╔╝
+	 ╚═════╝  ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝ 
+	════════════════════════════════════════════════════`
+
+type Executor struct {
+	Log   LogConfig
+	Tests Test
 }
 
-func (sw *SafeFileWriter) write(data string) (int, error) {
-	sw.mu.Lock()
-	defer sw.mu.Unlock()
-	return sw.file.WriteString(data)
+func (e Executor) Execute() {
 }
 
 func Execute(config Config) {
+
+	fmt.Print(logo + "\n\n\n")
 	printConfig(config)
 	fmt.Println("Starting execution...")
 	logFilename := "execution-" + time.Now().Format("2006-01-02-15:04:05") + ".log"
@@ -46,6 +53,7 @@ func Execute(config Config) {
 		panic(err)
 	}
 	safeWriter := SafeFileWriter{file: file, mu: sync.Mutex{}}
+	safeWriter.file.WriteString(logo + "\n\n\n")
 	_, err = safeWriter.file.WriteString("Starting execution at " + time.Now().Format("15:04:05") + "\n")
 	if err != nil {
 		return
@@ -61,14 +69,17 @@ func Execute(config Config) {
 		},
 	}
 
-	respStats := []float32{}
-	success := []bool{}
+	timepointExecutionStats := make([]TimepointExecutionStat, len(config.Timepoints), len(config.Timepoints))
 	for timepointIndex := 0; timepointIndex < len(config.Timepoints); timepointIndex++ {
-		fmt.Println("Starting timepoint " + fmt.Sprint(timepointIndex) + " at " + time.Now().Format("15:04:05"))
+		fmt.Println("════════════════════════════════════════════════════")
+		fmt.Print("Starting timepoint " + fmt.Sprint(timepointIndex) + " at " + time.Now().Format("15:04:05"))
 		startTime := time.Now()
+		timepointExecutionStats[timepointIndex] = TimepointExecutionStat{
+			ExecutionTimepoint: config.Timepoints[timepointIndex],
+		}
 		for j := 0; j < config.Timepoints[timepointIndex].TargetVu; j++ {
 			waitingGroup.Add(1)
-			go execute(j, timepointIndex, config, &waitingGroup, httpClient, &safeWriter, &respStats, &success)
+			go execute(j, timepointIndex, config, &waitingGroup, httpClient, &safeWriter, &timepointExecutionStats[timepointIndex])
 		}
 		for {
 			endTime := time.Now()
@@ -77,47 +88,28 @@ func Execute(config Config) {
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
+
+		fmt.Println("completed at " + time.Now().Format("15:04:05"))
 	}
 
 	waitingGroup.Wait()
-	sort.Slice(respStats, func(i, j int) bool { return respStats[i] < respStats[j] })
-	percentiles := []float64{70, 80, 90, 95, 99}
-	fmt.Println("Execution finished at " + time.Now().Format("15:04:05"))
-	fmt.Println("Execution stats :")
-	fmt.Println("Response time stats :")
-	fmt.Println("   70th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[0])))
-	fmt.Println("   80th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[1])))
-	fmt.Println("   90th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[2])))
-	fmt.Println("   95th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[3])))
-	fmt.Println("   99th percentile : " + fmt.Sprint(percentileResponseTime(respStats, percentiles[4])))
-	fmt.Println("Response success stats :")
-	fmt.Println("   70th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[0])))
-	fmt.Println("   80th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[1])))
-	fmt.Println("   90th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[2])))
-	fmt.Println("   95th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[3])))
-	fmt.Println("   99th percentile : " + fmt.Sprint(percentileSuccess(success, percentiles[4])))
+	fmt.Println("════════════════════════════════════════════════════")
+	fmt.Println("Execution completed at " + time.Now().Format("15:04:05"))
+	fmt.Println("════════════════════════════════════════════════════")
+	for i := 0; i < len(timepointExecutionStats); i++ {
+		fmt.Println("\nSummary for timepoint " + fmt.Sprint(i) + " : \n")
+		fmt.Println(timepointExecutionStats[i].printSuccessStats())
+		fmt.Println(timepointExecutionStats[i].printResponseTimeStats())
+		fmt.Println("════════════════════════════════════════════════════")
+	}
 }
 
-func percentileResponseTime(data []float32, percentile float64) float32 {
-	sort.Slice(data, func(i, j int) bool { return data[i] < data[j] })
-	idx := int(float64(len(data)-1) * percentile / 100)
-	return data[idx]
-}
-
-func percentileSuccess(data []bool, percentile float64) float64 {
-	sort.Slice(data, func(i, j int) bool { return data[i] && !data[j] })
-	idx := int(float64(len(data)-1) * percentile / 100)
-	return float64(idx)
-}
-
-func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGroup, httpClient *http.Client, safeFileWriter *SafeFileWriter, respStats *[]float32, success *[]bool) {
-	fmt.Println("Executing VU[" + fmt.Sprint(vuId) + "]")
+func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGroup, httpClient *http.Client, safeFileWriter *SafeFileWriter, stat *TimepointExecutionStat) {
 	defer waitingGroup.Done()
 	endTime := time.Now().Add(config.Timepoints[timepointId].Duration)
 	for {
 		startTime := time.Now()
 		if startTime.After(endTime) || startTime.Equal(endTime) {
-			fmt.Println("VU[" + fmt.Sprint(vuId) + "] finished executing timepoint " + fmt.Sprint(timepointId) + " at " + time.Now().Format("15:04:05"))
 			break
 		}
 		var resp *http.Response
@@ -136,9 +128,9 @@ func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGr
 		}
 		defer resp.Body.Close()
 		respTime := time.Since(startTime)
-		*respStats = append(*respStats, float32(respTime.Seconds()))
+		stat.ResponseTime = append(stat.ResponseTime, float32(respTime.Seconds()))
 		reason, match := validateResponse(resp, config.Response)
-		*success = append(*success, match)
+		stat.Success = append(stat.Success, match)
 		var validString string
 		if match == true {
 			validString = "MATCH"
@@ -157,7 +149,7 @@ func execute(vuId int, timepointId int, config Config, waitingGroup *sync.WaitGr
 }
 
 func printConfig(config Config) {
-	fmt.Println("Executing loading test for the following config :")
+	fmt.Println("Executing loading test for the following parser :")
 	fmt.Printf("Method: %v\n", config.Request.Method)
 	fmt.Printf("URI: %s\n", config.Request.URI)
 	fmt.Printf("Logging enabled: %v\n", config.Log)
