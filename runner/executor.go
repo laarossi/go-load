@@ -25,25 +25,33 @@ type Executor struct {
 func (e *Executor) Execute() {
 	fmt.Println(logo)
 	for _, test := range e.Collection.Tests {
-		e.executeTest(test)
-	}
-}
-
-func (e *Executor) executeTest(test Test) {
-	fmt.Println("configuring test: ", test.Name)
-	for _, phase := range test.Phases {
-		e.executePhase(phase, test.Request)
+		if test.Name != nil {
+			fmt.Println("parsing test configuration for ", *test.Name)
+		} else {
+			fmt.Println("parsing test configuration")
+		}
+		for _, phase := range test.Phases {
+			e.executePhase(phase, test.Request)
+		}
 	}
 }
 
 func (e *Executor) executePhase(phase Phase, request Request) {
-	fmt.Println("parsing phase configuration for ", phase.Name)
+	if phase.Name != nil {
+		fmt.Println("parsing phase configuration for ", *phase.Name)
+	} else {
+		fmt.Println("parsing phase configuration")
+	}
+
 	if phase.SingleRequest != nil && *phase.SingleRequest {
 		fmt.Println("executing single request")
 		response := e.executeRequest(request)
 		if response.Error != nil {
 			fmt.Println("error executing request: ", response.Error)
 		}
+		fmt.Println("response status: ", response.StatusCode)
+		fmt.Println("response duration: ", response.Duration)
+		fmt.Println("response body: ", response.Body)
 	} else {
 		fmt.Println("executing multiple requests")
 	}
@@ -71,6 +79,10 @@ func (e *Executor) executeRequest(request Request) Response {
 	}
 	response.Body = string(responseData)
 	return response
+}
+
+func (e *Executor) orchestratePhase(phase Phase) {
+
 }
 
 func validateResponse(response *http.Response, expectedResponse Response) (string, bool) {
