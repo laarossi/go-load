@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+const logo = `
+	 ██████╗  ██████╗ ██╗	  ██████╗  █████╗ ██████╗ 
+	██╔════╝ ██╔═══██╗██║	 ██╔═══██╗██╔══██╗██╔══██╗
+	██║  ███╗██║   ██║██║	 ██║   ██║███████║██║  ██║
+	██║   ██║██║   ██║██║	 ██║   ██║██╔══██║██║  ██║
+	╚██████╔╝╚██████╔╝███████╗╚██████╔╝██║  ██║██████╔╝
+	 ╚═════╝  ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝ 
+	════════════════════════════════════════════════════`
+
 type Logger struct {
 	Dateformat string
 	input      io.Writer
@@ -32,5 +41,19 @@ func (logger *Logger) Log(logData string) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (logger *Logger) LogLogo() error {
+	logData := logo + "\n"
+	_, err := logger.input.Write([]byte(logData))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (logger *Logger) Close() error {
+	logger.input = nil
 	return nil
 }
