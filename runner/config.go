@@ -69,9 +69,10 @@ type Phase struct {
 	Name          *string        `yaml:"name"`
 	SingleRequest *bool          `yaml:"single_request,omitempty"`
 	Duration      *time.Duration `yaml:"duration,omitempty"`
-	StartVUs      *int           `yaml:"start_vus,omitempty"`
-	EndVUs        *int           `yaml:"end_vus,omitempty"`
+	Increment     *time.Duration `yaml:"increment,omitempty"`
+	IncrementVus  *int           `yaml:"increment_vus,omitempty"`
 	TargetVUs     *int           `yaml:"target_vus,omitempty"`
+	Request       *Request       `yaml:"request"`
 }
 
 type LogConfig struct {
