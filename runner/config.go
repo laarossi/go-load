@@ -1,4 +1,4 @@
-package goload
+package runner
 
 import (
 	"net/http"
@@ -28,6 +28,8 @@ const (
 	AndroidAgent UserAgent = "android"
 	IOSAgent     UserAgent = "ios"
 )
+
+type Profile string
 
 type Response struct {
 	StatusCode int `yaml:"status_code,omitempty"`
