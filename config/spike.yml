@@ -23,10 +23,6 @@ tests:
       status_code: 200
     phases:
       - duration: 5s
-        target_vus: 10
-      - duration: 30s
-        target_vus: 30
-      - duration: 10s
         target_vus: 5
-      - duration: 1m
-        target_vus: 30
+        increment: 1s
+        increment_vus: 5
