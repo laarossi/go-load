@@ -63,26 +63,34 @@ func (e *Executor) Execute() {
 			fmt.Println("parsing test configuration")
 		}
 		for _, phase := range test.Phases {
-			e.executePhase(phase, test.Request)
+			err := e.executePhase(phase, test.Request, test.Global)
+			if err != nil {
+				_ = fmt.Errorf("failed to execute phase: %s", err)
+			}
 		}
 	}
 }
 
-func (e *Executor) executePhase(phase Phase, request Request) error {
+func (e *Executor) executePhase(phase Phase, request Request, global *Global) error {
 	executionSegment, err := ResolvePhase(phase)
 	if err != nil {
 		fmt.Printf("Error resolving phase: %s\n", err)
 		return nil
 	}
-	runner := SegmentRunner{
-		MetricsCollector: &e.metricCollector,
-		Logger:           &e.logger,
+	for {
+		if executionSegment == nil {
+			break
+		}
+		runner := SegmentRunner{
+			MetricsCollector: &e.metricCollector,
+			Logger:           &e.logger,
+		}
+		err = runner.Run(executionSegment, request, global)
+		if err != nil {
+			fmt.Errorf("Error running segment %s", err)
+		}
+		executionSegment = executionSegment.Next
 	}
-	err = runner.Run(executionSegment)
-	if err != nil {
-		return fmt.Errorf("Error running segment %s", err)
-	}
-
 	return nil
 }
 
