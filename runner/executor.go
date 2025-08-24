@@ -1,30 +1,62 @@
-package goload
+package runner
 
 import (
 	"encoding/json"
 	"fmt"
+	"goload/logger"
+	"goload/metrics"
+	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"time"
 )
 
-const logo = `
-	 ██████╗  ██████╗ ██╗	  ██████╗  █████╗ ██████╗ 
-	██╔════╝ ██╔═══██╗██║	 ██╔═══██╗██╔══██╗██╔══██╗
-	██║  ███╗██║   ██║██║	 ██║   ██║███████║██║  ██║
-	██║   ██║██║   ██║██║	 ██║   ██║██╔══██║██║  ██║
-	╚██████╔╝╚██████╔╝███████╗╚██████╔╝██║  ██║██████╔╝
-	 ╚═════╝  ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═════╝ 
-	════════════════════════════════════════════════════`
-
 type Executor struct {
-	Collection Collection
+	collection      Collection
+	logger          logger.Logger
+	metricCollector metrics.MetricsCollector
+}
+
+func LoadFromYaml(yamlFilePath string) (*Executor, error) {
+	configPath := filepath.Join(yamlFilePath)
+	yamlFile, err := os.ReadFile(configPath)
+	if err != nil {
+		fmt.Printf("Error reading YAML file: %s\n", err)
+		return &Executor{}, err
+	}
+
+	var collection Collection
+	err = yaml.Unmarshal(yamlFile, &collection)
+	if err != nil {
+		fmt.Printf("Error parsing YAML: %s\n", err)
+		return &Executor{}, err
+	}
+
+	executor := Executor{
+		collection: collection,
+	}
+	err = executor.load()
+	if err != nil {
+		return &Executor{}, err
+	}
+	return &executor, nil
+}
+
+func (e *Executor) load() error {
+	e.logger, _ = logger.NewLogger("logs")
+	e.metricCollector = metrics.MetricsCollector{}
+	err := e.metricCollector.Init()
+	if err != nil {
+		return fmt.Errorf("error initializing metrics collector: %s", err)
+	}
+	return nil
 }
 
 func (e *Executor) Execute() {
-	fmt.Println(logo)
-	for _, test := range e.Collection.Tests {
+	for _, test := range e.collection.Tests {
 		if test.Name != nil {
 			fmt.Println("parsing test configuration for ", *test.Name)
 		} else {
@@ -36,25 +68,22 @@ func (e *Executor) Execute() {
 	}
 }
 
-func (e *Executor) executePhase(phase Phase, request Request) {
-	if phase.Name != nil {
-		fmt.Println("parsing phase configuration for ", *phase.Name)
-	} else {
-		fmt.Println("parsing phase configuration")
+func (e *Executor) executePhase(phase Phase, request Request) error {
+	executionSegment, err := ResolvePhase(phase)
+	if err != nil {
+		fmt.Printf("Error resolving phase: %s\n", err)
+		return nil
+	}
+	runner := SegmentRunner{
+		MetricsCollector: &e.metricCollector,
+		Logger:           &e.logger,
+	}
+	err = runner.Run(executionSegment)
+	if err != nil {
+		return fmt.Errorf("Error running segment %s", err)
 	}
 
-	if phase.SingleRequest != nil && *phase.SingleRequest {
-		fmt.Println("executing single request")
-		response := e.executeRequest(request)
-		if response.Error != nil {
-			fmt.Println("error executing request: ", response.Error)
-		}
-		fmt.Println("response status: ", response.StatusCode)
-		fmt.Println("response duration: ", response.Duration)
-		fmt.Println("response body: ", response.Body)
-	} else {
-		fmt.Println("executing multiple requests")
-	}
+	return nil
 }
 
 func (e *Executor) executeRequest(request Request) Response {
@@ -79,10 +108,6 @@ func (e *Executor) executeRequest(request Request) Response {
 	}
 	response.Body = string(responseData)
 	return response
-}
-
-func (e *Executor) orchestratePhase(phase Phase) {
-
 }
 
 func validateResponse(response *http.Response, expectedResponse Response) (string, bool) {
