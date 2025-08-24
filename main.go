@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	executor, err := runner.LoadFromYaml("config/spike.yaml")
+	executor, err := runner.LoadFromYaml("config/spike.yml")
 	if err != nil {
 		fmt.Printf("Failed to load config: %s\n", err)
 	}
