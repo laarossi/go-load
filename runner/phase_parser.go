@@ -73,6 +73,8 @@ func parseIncrementalPhase(phase Phase) (*Segment, error) {
 
 		if i == 0 {
 			headSegment = segment
+			previousSegment = &headSegment
+			continue
 		}
 		previousSegment.Next = &segment
 		previousSegment = &segment
