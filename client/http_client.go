@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"goload/metrics"
 	"io"
 	"net/http"
@@ -11,22 +12,21 @@ type HttpClient struct {
 	client *http.Client
 }
 
-// RequestOptions allows custom headers, cookies, and body
 type RequestOptions struct {
 	Headers map[string]string
 	Cookies []*http.Cookie
-	Body    io.Reader
+	Body    []byte // store body as []byte instead of io.Reader
 }
 
 // DoRequest performs any HTTP method with headers, cookies, and body
-func (c *HttpClient) doRequest(method, url string, opts *RequestOptions) (*metrics.RequestMetric, *metrics.NetworkMetric, error) {
+func (c *HttpClient) DoRequest(method, url string, opts *RequestOptions) (*metrics.RequestMetric, *metrics.NetworkMetric, error) {
 	startTime := time.Now()
 
 	var bodyReader io.Reader
 	var sentBytes int64
 	if opts != nil && opts.Body != nil {
-		// Wrap body to count bytes sent
-		bodyReader = &countingReader{R: opts.Body, Count: &sentBytes}
+		sentBytes = int64(len(opts.Body))
+		bodyReader = bytes.NewReader(opts.Body)
 	}
 
 	req, err := http.NewRequest(method, url, bodyReader)
@@ -54,10 +54,8 @@ func (c *HttpClient) doRequest(method, url string, opts *RequestOptions) (*metri
 	}
 	defer resp.Body.Close()
 
-	// Count response bytes
-	var receivedBytes int64
-	respBody := &countingReader{R: resp.Body, Count: &receivedBytes}
-	_, err = io.ReadAll(respBody)
+	// Read all response bytes
+	responseBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -66,47 +64,44 @@ func (c *HttpClient) doRequest(method, url string, opts *RequestOptions) (*metri
 		Duration:   time.Since(startTime),
 		StatusCode: resp.StatusCode,
 	}
+
 	networkMetric := &metrics.NetworkMetric{
 		BytesSent: sentBytes,
-		BytesRecv: receivedBytes,
+		BytesRecv: int64(len(responseBytes)),
 	}
 
 	return requestMetric, networkMetric, nil
 }
 
-type countingReader struct {
-	R     io.Reader
-	Count *int64
-}
-
-func (c *countingReader) Read(p []byte) (n int, err error) {
-	n, err = c.R.Read(p)
-	*c.Count += int64(n)
-	return
-}
-
+// Convenience methods
 func (c *HttpClient) Get(url string, opts *RequestOptions) (*metrics.RequestMetric, *metrics.NetworkMetric, error) {
-	return c.doRequest(http.MethodGet, url, opts)
+	return c.DoRequest(http.MethodGet, url, opts)
 }
 
-func (c *HttpClient) Post(url string, contentType string, body io.Reader, opts *RequestOptions) (*metrics.RequestMetric, *metrics.NetworkMetric, error) {
+func (c *HttpClient) Post(url string, contentType string, body []byte, opts *RequestOptions) (*metrics.RequestMetric, *metrics.NetworkMetric, error) {
 	if opts == nil {
 		opts = &RequestOptions{}
 	}
-	opts.Headers = map[string]string{"Content-Type": contentType}
+	if opts.Headers == nil {
+		opts.Headers = make(map[string]string)
+	}
+	opts.Headers["Content-Type"] = contentType
 	opts.Body = body
-	return c.doRequest(http.MethodPost, url, opts)
+	return c.DoRequest(http.MethodPost, url, opts)
 }
 
-func (c *HttpClient) Put(url string, contentType string, body io.Reader, opts *RequestOptions) (*metrics.RequestMetric, *metrics.NetworkMetric, error) {
+func (c *HttpClient) Put(url string, contentType string, body []byte, opts *RequestOptions) (*metrics.RequestMetric, *metrics.NetworkMetric, error) {
 	if opts == nil {
 		opts = &RequestOptions{}
 	}
-	opts.Headers = map[string]string{"Content-Type": contentType}
+	if opts.Headers == nil {
+		opts.Headers = make(map[string]string)
+	}
+	opts.Headers["Content-Type"] = contentType
 	opts.Body = body
-	return c.doRequest(http.MethodPut, url, opts)
+	return c.DoRequest(http.MethodPut, url, opts)
 }
 
 func (c *HttpClient) Delete(url string, opts *RequestOptions) (*metrics.RequestMetric, *metrics.NetworkMetric, error) {
-	return c.doRequest(http.MethodDelete, url, opts)
+	return c.DoRequest(http.MethodDelete, url, opts)
 }
