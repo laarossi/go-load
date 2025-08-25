@@ -2,16 +2,27 @@ package utils
 
 import (
 	"os"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 )
 
 type SafeFileWriter struct {
-	file *os.File
-	mu   sync.Mutex
+	File *os.File
+	Mu   sync.Mutex
 }
 
-func (sw *SafeFileWriter) write(data string) (int, error) {
-	sw.mu.Lock()
-	defer sw.mu.Unlock()
-	return sw.file.WriteString(data)
+func (sw *SafeFileWriter) Write(data string) (int, error) {
+	sw.Mu.Lock()
+	defer sw.Mu.Unlock()
+	return sw.File.WriteString(data)
+}
+
+func GetGoroutineID() int {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	idField := strings.Fields(strings.TrimPrefix(string(buf[:n]), "goroutine "))[0]
+	id, _ := strconv.Atoi(idField)
+	return id
 }
