@@ -42,8 +42,11 @@ func LoadFromYaml(yamlFilePath string) (*Executor, error) {
 }
 
 func (e *Executor) load() error {
-	e.logger, _ = logger.NewLogger("logs")
-	e.metricCollector = metrics.MetricsCollector{}
+	newLogger, _ := logger.NewLogger("logs")
+	e.logger = *newLogger
+	e.metricCollector = metrics.MetricsCollector{
+		LogDir: "logs",
+	}
 	err := e.metricCollector.Init()
 	if err != nil {
 		return fmt.Errorf("error initializing metrics collector: %s", err)
@@ -67,7 +70,7 @@ func (e *Executor) Execute() {
 	}
 }
 
-func (e *Executor) executePhase(phase Phase, request client.Request, global *Global) error {
+func (e *Executor) executePhase(phase Phase, request client.HTTPRequest, global *Global) error {
 	executionSegment, err := ResolvePhase(phase)
 	if err != nil {
 		fmt.Printf("Error resolving phase: %s\n", err)
@@ -83,7 +86,8 @@ func (e *Executor) executePhase(phase Phase, request client.Request, global *Glo
 		}
 		err = runner.Run(executionSegment, request, global)
 		if err != nil {
-			fmt.Errorf("Error running segment %s", err)
+			_ = fmt.Errorf("error running segment %s", err)
+			continue
 		}
 		executionSegment = executionSegment.Next
 	}
