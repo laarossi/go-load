@@ -33,10 +33,13 @@ func (collector *MetricsCollector) Init() error {
 		collector.CheckMetrics = make([]CheckMetric, 0)
 		collector.metricsMutex = make([]sync.Mutex, 1)
 		collector.metricsMutex[0] = sync.Mutex{}
-		fileName := collector.LogDir + "/metrics-" + time.Now().Format("2006-01-02 15:04:05") + ".metrics"
+		fileName := collector.LogDir + "/metrics-" + time.Now().Format("2006-01-02 15:04:05")
+		if err := os.MkdirAll(collector.LogDir, 0755); err != nil {
+			return fmt.Errorf("error creating directory: %s", err)
+		}
 		file, err := os.Create(fileName)
 		if err != nil {
-			return fmt.Errorf("error creating log file: %s", err)
+			return fmt.Errorf("error creating metrics file: %s", err)
 		}
 		collector.logWriter = io.Writer(file)
 	}
