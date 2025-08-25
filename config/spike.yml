@@ -15,9 +15,10 @@ tests:
       timeout: 30s
       retries: 5
       retries_delay: 2s
+      think_time: 200ms
     request:
       method: get
-      uri: localhost:8974/products/121
+      uri: http://localhost:8974/products/171
       user_agent: chrome
     response:
       status_code: 200
