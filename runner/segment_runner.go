@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"fmt"
 	"goload/client"
 	"goload/logger"
 	"goload/metrics"
@@ -12,7 +13,7 @@ import (
 type Segment struct {
 	TargetVUs int
 	Duration  *time.Duration
-	Request   *client.Request
+	Request   *client.HTTPRequest
 	Next      *Segment
 }
 
@@ -28,9 +29,9 @@ type SegmentRunner struct {
 	Client           client.Client
 }
 
-func (runner *SegmentRunner) Run(segment *Segment, request client.Request, global *Global) error {
+func (runner *SegmentRunner) Run(segment *Segment, httpRequest client.HTTPRequest, global *Global) error {
 	if segment.Request != nil {
-		request = *segment.Request
+		httpRequest = *segment.Request
 	}
 
 	var wg sync.WaitGroup
@@ -45,25 +46,19 @@ func (runner *SegmentRunner) Run(segment *Segment, request client.Request, globa
 		}
 		first = false
 		for i := 0; i < segment.TargetVUs; i++ {
-			go func() {
-				requestMetrics, networkMetrics, err := httpClient.DoRequest(string(request.Method), request.URI, &client.RequestOptions{
-					Headers: request.Headers,
-					Cookies: request.Cookies,
-					Body:    &request.Body,
-				})
-				if err != nil {
-					return
-				}
-				err = runner.MetricsCollector.IngestRequestMetric(*requestMetrics)
-				if err != nil {
-					return
-				}
-				err = runner.MetricsCollector.IngestNetworkMetric(*networkMetrics)
-				if err != nil {
-					return
-				}
-			}()
 			wg.Add(1)
+			go func() {
+				request, err := client.CreateRequest(httpRequest)
+				if err != nil {
+					_ = fmt.Errorf("error creating the httpRequest: %s\n", err)
+				}
+				response, err := httpClient.ExecuteRequest(request)
+				runner.Logger.LogResponse(*response)
+				if global.ThinkTime != nil {
+					time.Sleep(*global.ThinkTime)
+				}
+				wg.Done()
+			}()
 		}
 		wg.Wait()
 	}
