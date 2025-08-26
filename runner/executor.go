@@ -48,6 +48,7 @@ func (e *Executor) load() error {
 		LogDir: "logs",
 	}
 	err := e.metricCollector.Init()
+	e.metricCollector.StartWorkers()
 	if err != nil {
 		return fmt.Errorf("error initializing metrics collector: %s", err)
 	}
@@ -92,4 +93,8 @@ func (e *Executor) executePhase(phase Phase, request client.HTTPRequest, global 
 		executionSegment = executionSegment.Next
 	}
 	return nil
+}
+
+func (e *Executor) Close() {
+	e.metricCollector.Close()
 }
