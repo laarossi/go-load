@@ -18,7 +18,7 @@ type MetricsCollector struct {
 	RequestsMetrics  []RequestMetric
 	NetworkMetrics   []NetworkMetric
 	CheckMetrics     []CheckMetric
-	MetricWorkerPool utils.WorkerPool[MetricWorkerTask]
+	MetricWorkerPool *utils.WorkerPool[MetricWorkerTask]
 }
 
 type MetricWorkerTask struct {
@@ -54,9 +54,9 @@ func (collector *MetricsCollector) Init() error {
 
 func (collector *MetricsCollector) MetricWorkerHandler(task MetricWorkerTask) error {
 	if task.TaskType == "request" {
-		// Define task
+		fmt.Println("request metric received")
 	} else if task.TaskType == "network" {
-		// Define task
+		//
 	} else if task.TaskType == "check" {
 		// Define task
 	} else {
@@ -66,13 +66,31 @@ func (collector *MetricsCollector) MetricWorkerHandler(task MetricWorkerTask) er
 }
 
 func (collector *MetricsCollector) IngestRequestMetric(metric RequestMetric) error {
+	metricTask := MetricWorkerTask{
+		TaskType: "request",
+		TaskData: metric,
+	}
+	collector.MetricWorkerPool.AddTask(metricTask)
 	return nil
 }
 
 func (collector *MetricsCollector) IngestNetworkMetric(metric NetworkMetric) error {
+	metricTask := MetricWorkerTask{
+		TaskType: "network",
+		TaskData: metric,
+	}
+	collector.MetricWorkerPool.AddTask(metricTask)
 	return nil
 }
 
 func (collector *MetricsCollector) IngestCheckMetric(metric CheckMetric) error {
 	return nil
+}
+
+func (collector *MetricsCollector) StartWorkers() {
+	collector.MetricWorkerPool.Start()
+}
+
+func (collector *MetricsCollector) Close() {
+	collector.MetricWorkerPool.Stop()
 }
