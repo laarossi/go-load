@@ -54,6 +54,10 @@ func (runner *SegmentRunner) Run(segment *Segment, httpRequest client.HTTPReques
 				}
 				response, err := httpClient.ExecuteRequest(request)
 				runner.Logger.LogResponse(*response)
+				err = runner.MetricsCollector.IngestRequestMetric(*response.RequestMetric)
+				if err != nil {
+					fmt.Printf("error ingesting request metric: %s\n", err)
+				}
 				if global.ThinkTime != nil {
 					time.Sleep(*global.ThinkTime)
 				}
