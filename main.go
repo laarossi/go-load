@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"goload/runner"
+	"goload/internal/runner"
 )
 
 func main() {

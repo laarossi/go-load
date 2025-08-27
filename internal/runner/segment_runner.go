@@ -2,9 +2,10 @@ package runner
 
 import (
 	"fmt"
-	"goload/client"
+	"goload/internal/client"
+	"goload/internal/logging"
+	"goload/internal/metrics"
 	"goload/types"
-	"goload/utils"
 	"net/http"
 	"sync"
 	"time"
@@ -24,8 +25,8 @@ type SegmentExecutionMetrics struct {
 }
 
 type SegmentRunner struct {
-	MetricsCollector *utils.MetricsCollector
-	Logger           *utils.Logger
+	MetricsCollector *metrics.MetricsCollector
+	Logger           *logging.Logger
 	Client           client.Client
 }
 

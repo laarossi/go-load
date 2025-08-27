@@ -2,8 +2,9 @@ package runner
 
 import (
 	fmt "fmt"
+	"goload/internal/logging"
+	"goload/internal/metrics"
 	"goload/types"
-	"goload/utils"
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
@@ -11,8 +12,8 @@ import (
 
 type Executor struct {
 	collection      Collection
-	logger          utils.Logger
-	metricCollector utils.MetricsCollector
+	logger          logging.Logger
+	metricCollector metrics.MetricsCollector
 }
 
 func LoadFromYaml(yamlFilePath string) (*Executor, error) {
@@ -41,9 +42,9 @@ func LoadFromYaml(yamlFilePath string) (*Executor, error) {
 }
 
 func (e *Executor) load() error {
-	newLogger, _ := utils.NewLogger("logs")
+	newLogger, _ := logging.NewLogger("logs")
 	e.logger = *newLogger
-	e.metricCollector = utils.MetricsCollector{
+	e.metricCollector = metrics.MetricsCollector{
 		Logger: *newLogger,
 	}
 	return nil

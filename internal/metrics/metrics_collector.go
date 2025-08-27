@@ -1,21 +1,23 @@
-package utils
+package metrics
 
 import (
 	"fmt"
 	"github.com/HdrHistogram/hdrhistogram-go"
+	"goload/internal/logging"
+	"goload/internal/worker"
 	"goload/types"
 	"sync"
 )
 
 type MetricsCollector struct {
-	Logger                       Logger
+	Logger                       logging.Logger
 	requestLatencyHistogramMutex *sync.Mutex
 	requestLatencyHistogram      *hdrhistogram.Histogram
 	totalChacks                  int64
 	totalRequests                int64
 	totalFails                   int64
 	totalSuccesses               int64
-	MetricWorkerPool             *WorkerPool[MetricWorkerTask]
+	MetricWorkerPool             *worker.WorkerPool[MetricWorkerTask]
 }
 
 type MetricWorkerTask struct {
@@ -26,7 +28,7 @@ type MetricWorkerTask struct {
 func (collector *MetricsCollector) Init() error {
 	collector.requestLatencyHistogram = hdrhistogram.New(1, 60_000_000, 3)
 	collector.requestLatencyHistogramMutex = &sync.Mutex{}
-	collector.MetricWorkerPool = NewWorkerPool[MetricWorkerTask](10, func(task MetricWorkerTask) {
+	collector.MetricWorkerPool = worker.NewWorkerPool[MetricWorkerTask](10, func(task MetricWorkerTask) {
 		err := collector.metricWorkerHandler(task)
 		if err != nil {
 			return

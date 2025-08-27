@@ -1,8 +1,9 @@
-package utils
+package logging
 
 import (
 	"fmt"
 	"goload/types"
+	"goload/utils"
 	"os"
 	"sync"
 	"time"
@@ -19,7 +20,7 @@ const logo = `
 
 type Logger struct {
 	Dateformat string
-	input      *SafeFileWriter
+	input      *utils.SafeFileWriter
 }
 
 func NewLogger(logDir string) (*Logger, error) {
@@ -35,7 +36,7 @@ func NewLogger(logDir string) (*Logger, error) {
 	if err != nil {
 		return &logger, fmt.Errorf("error creating log file: %s", err)
 	}
-	logger.input = &SafeFileWriter{
+	logger.input = &utils.SafeFileWriter{
 		File: file,
 		Mu:   sync.Mutex{},
 	}
@@ -63,7 +64,7 @@ func (logger *Logger) LogResponse(response types.HTTPResponse) error {
 
 	logData := fmt.Sprintf("%s [executor-%06d] status=%d resp_time=%06dms | %s | %s\n",
 		time.Now().Format(logger.Dateformat),
-		GetGoroutineID(),
+		utils.GetGoroutineID(),
 		response.StatusCode,
 		response.RequestMetric.Duration.Milliseconds(),
 		networkStats,
