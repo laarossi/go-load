@@ -70,7 +70,11 @@ func (e *Executor) Execute() {
 		}
 	}
 	e.metricCollector.StopWorkers()
-	e.metricCollector.PrintRequestLatencyPercentiles()
+	fmt.Println("\nResponse Time Stats:")
+	percentiles := []float32{50, 75, 90, 95, 99}
+	for _, p := range percentiles {
+		e.metricCollector.PrintRequestLatencyPercentiles(p)
+	}
 }
 
 func (e *Executor) executePhase(phase Phase, request client.HTTPRequest, global *Global) error {
