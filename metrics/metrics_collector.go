@@ -71,15 +71,8 @@ func (collector *MetricsCollector) metricWorkerHandler(task MetricWorkerTask) er
 	return nil
 }
 
-func (collector *MetricsCollector) PrintRequestLatencyPercentiles() {
-	fmt.Printf("Request Latency Percentiles at 50 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(50.0))/1000.0)
-	fmt.Printf("Request Latency Percentiles at 70 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(70.0))/1000.0)
-	fmt.Printf("Request Latency Percentiles at 80 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(80.0))/1000.0)
-	fmt.Printf("Request Latency Percentiles at 90 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(90.0))/1000.0)
-	fmt.Printf("Request Latency Percentiles at 95 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(95.0))/1000.0)
-	fmt.Printf("Request Latency Percentiles at 97 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(97.0))/1000.0)
-	fmt.Printf("Request Latency Percentiles at 98 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(98.0))/1000.0)
-	fmt.Printf("Request Latency Percentiles at 99 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(99.0))/1000.0)
+func (collector *MetricsCollector) PrintRequestLatencyPercentiles(percentile float32) {
+	fmt.Printf("Request Latency Percentiles at %03.1f %% : %f\n", percentile, float64(collector.requestLatencyHistogram.ValueAtQuantile(float64(percentile))))
 }
 
 func (collector *MetricsCollector) IngestRequestMetric(metric RequestMetric) error {
