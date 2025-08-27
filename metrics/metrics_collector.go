@@ -2,23 +2,26 @@ package metrics
 
 import (
 	"fmt"
+	"github.com/HdrHistogram/hdrhistogram-go"
 	"goload/utils"
 	"io"
 	"os"
-
 	"sync"
+	"sync/atomic"
+
 	"time"
 )
 
 type MetricsCollector struct {
-	InMemory         bool
-	logWriter        io.Writer
-	LogDir           string
-	metricsMutex     []sync.Mutex
-	RequestsMetrics  []RequestMetric
-	NetworkMetrics   []NetworkMetric
-	CheckMetrics     []CheckMetric
-	MetricWorkerPool *utils.WorkerPool[MetricWorkerTask]
+	logWriter                    io.Writer
+	LogDir                       string
+	requestLatencyHistogramMutex *sync.Mutex
+	requestLatencyHistogram      *hdrhistogram.Histogram
+	totalChacks                  int64
+	totalRequests                int64
+	totalFails                   int64
+	totalSuccesses               int64
+	MetricWorkerPool             *utils.WorkerPool[MetricWorkerTask]
 }
 
 type MetricWorkerTask struct {
@@ -27,24 +30,20 @@ type MetricWorkerTask struct {
 }
 
 func (collector *MetricsCollector) Init() error {
-	if !collector.InMemory {
-		collector.RequestsMetrics = make([]RequestMetric, 0)
-		collector.NetworkMetrics = make([]NetworkMetric, 0)
-		collector.CheckMetrics = make([]CheckMetric, 0)
-		collector.metricsMutex = make([]sync.Mutex, 1)
-		collector.metricsMutex[0] = sync.Mutex{}
-		fileName := collector.LogDir + "/metrics-" + time.Now().Format("2006-01-02 15:04:05")
-		if err := os.MkdirAll(collector.LogDir, 0755); err != nil {
-			return fmt.Errorf("error creating directory: %s", err)
-		}
-		file, err := os.Create(fileName)
-		if err != nil {
-			return fmt.Errorf("error creating metrics file: %s", err)
-		}
-		collector.logWriter = io.Writer(file)
+	collector.requestLatencyHistogram = hdrhistogram.New(1, 60_000_000, 3)
+	collector.requestLatencyHistogramMutex = &sync.Mutex{}
+	fileName := collector.LogDir + "/metrics-" + time.Now().Format("2006-01-02 15:04:05")
+	if err := os.MkdirAll(collector.LogDir, 0755); err != nil {
+		return fmt.Errorf("error creating directory: %s", err)
 	}
+	file, err := os.Create(fileName)
+	if err != nil {
+		return fmt.Errorf("error creating metrics file: %s", err)
+	}
+	collector.logWriter = io.Writer(file)
+
 	collector.MetricWorkerPool = utils.NewWorkerPool[MetricWorkerTask](10, func(task MetricWorkerTask) {
-		err := collector.MetricWorkerHandler(task)
+		err := collector.metricWorkerHandler(task)
 		if err != nil {
 			return
 		}
@@ -52,9 +51,16 @@ func (collector *MetricsCollector) Init() error {
 	return nil
 }
 
-func (collector *MetricsCollector) MetricWorkerHandler(task MetricWorkerTask) error {
+func (collector *MetricsCollector) metricWorkerHandler(task MetricWorkerTask) error {
 	if task.TaskType == "request" {
-		fmt.Println("request metric received")
+		requestMetric := task.TaskData.(RequestMetric)
+		atomic.AddInt64(&collector.totalRequests, 1)
+		collector.requestLatencyHistogramMutex.Lock()
+		err := collector.requestLatencyHistogram.RecordValue(requestMetric.Duration.Milliseconds())
+		collector.requestLatencyHistogramMutex.Unlock()
+		if err != nil {
+			_ = fmt.Errorf("error recording request latency: %s", err)
+		}
 	} else if task.TaskType == "network" {
 		//
 	} else if task.TaskType == "check" {
@@ -63,6 +69,17 @@ func (collector *MetricsCollector) MetricWorkerHandler(task MetricWorkerTask) er
 		return fmt.Errorf("unknown task type: %s", task.TaskType)
 	}
 	return nil
+}
+
+func (collector *MetricsCollector) PrintRequestLatencyPercentiles() {
+	fmt.Printf("Request Latency Percentiles at 50 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(50.0))/1000.0)
+	fmt.Printf("Request Latency Percentiles at 70 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(70.0))/1000.0)
+	fmt.Printf("Request Latency Percentiles at 80 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(80.0))/1000.0)
+	fmt.Printf("Request Latency Percentiles at 90 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(90.0))/1000.0)
+	fmt.Printf("Request Latency Percentiles at 95 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(95.0))/1000.0)
+	fmt.Printf("Request Latency Percentiles at 97 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(97.0))/1000.0)
+	fmt.Printf("Request Latency Percentiles at 98 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(98.0))/1000.0)
+	fmt.Printf("Request Latency Percentiles at 99 percent : %f\n", float64(collector.requestLatencyHistogram.ValueAtQuantile(99.0))/1000.0)
 }
 
 func (collector *MetricsCollector) IngestRequestMetric(metric RequestMetric) error {
@@ -91,6 +108,6 @@ func (collector *MetricsCollector) StartWorkers() {
 	collector.MetricWorkerPool.Start()
 }
 
-func (collector *MetricsCollector) Close() {
+func (collector *MetricsCollector) StopWorkers() {
 	collector.MetricWorkerPool.Stop()
 }
