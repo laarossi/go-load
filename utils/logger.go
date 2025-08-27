@@ -1,9 +1,8 @@
-package logger
+package utils
 
 import (
 	"fmt"
-	"goload/client"
-	"goload/utils"
+	"goload/types"
 	"os"
 	"sync"
 	"time"
@@ -20,7 +19,7 @@ const logo = `
 
 type Logger struct {
 	Dateformat string
-	input      *utils.SafeFileWriter
+	input      *SafeFileWriter
 }
 
 func NewLogger(logDir string) (*Logger, error) {
@@ -36,10 +35,11 @@ func NewLogger(logDir string) (*Logger, error) {
 	if err != nil {
 		return &logger, fmt.Errorf("error creating log file: %s", err)
 	}
-	logger.input = &utils.SafeFileWriter{
+	logger.input = &SafeFileWriter{
 		File: file,
 		Mu:   sync.Mutex{},
 	}
+	logger.logLogo()
 	return &logger, nil
 }
 
@@ -52,7 +52,7 @@ func (logger *Logger) Log(logData string) error {
 	return nil
 }
 
-func (logger *Logger) LogResponse(response client.HTTPResponse) error {
+func (logger *Logger) LogResponse(response types.HTTPResponse) error {
 
 	networkStats := ""
 	if response.NetworkMetric != nil {
@@ -63,7 +63,7 @@ func (logger *Logger) LogResponse(response client.HTTPResponse) error {
 
 	logData := fmt.Sprintf("%s [executor-%06d] status=%d resp_time=%06dms | %s | %s\n",
 		time.Now().Format(logger.Dateformat),
-		utils.GetGoroutineID(),
+		GetGoroutineID(),
 		response.StatusCode,
 		response.RequestMetric.Duration.Milliseconds(),
 		networkStats,
@@ -75,9 +75,26 @@ func (logger *Logger) LogResponse(response client.HTTPResponse) error {
 	}
 	return nil
 }
-func (logger *Logger) LogLogo() error {
+
+func (logger *Logger) logLogo() error {
 	logData := logo + "\n"
 	_, err := logger.input.Write(logData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (logger *Logger) LogSeparator() error {
+	_, err := logger.input.Write("================================================================\n")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (logger *Logger) LogWithoutDate(logData string) error {
+	_, err := logger.input.Write(logData + "\n")
 	if err != nil {
 		return err
 	}
