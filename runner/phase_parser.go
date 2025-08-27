@@ -1,6 +1,8 @@
 package runner
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func ResolvePhase(phase Phase) (*Segment, error) {
 	if phase.SingleRequest != nil && *phase.SingleRequest {

@@ -3,8 +3,8 @@ package runner
 import (
 	"fmt"
 	"goload/client"
-	"goload/logger"
-	"goload/metrics"
+	"goload/types"
+	"goload/utils"
 	"net/http"
 	"sync"
 	"time"
@@ -13,23 +13,23 @@ import (
 type Segment struct {
 	TargetVUs int
 	Duration  *time.Duration
-	Request   *client.HTTPRequest
+	Request   *types.HTTPRequest
 	Next      *Segment
 }
 
 type SegmentExecutionMetrics struct {
-	RequestMetric metrics.RequestMetric
-	NetworkMetric metrics.NetworkMetric
-	CheckMetric   metrics.CheckMetric
+	RequestMetric types.RequestMetric
+	NetworkMetric types.NetworkMetric
+	CheckMetric   types.CheckMetric
 }
 
 type SegmentRunner struct {
-	MetricsCollector *metrics.MetricsCollector
-	Logger           *logger.Logger
+	MetricsCollector *utils.MetricsCollector
+	Logger           *utils.Logger
 	Client           client.Client
 }
 
-func (runner *SegmentRunner) Run(segment *Segment, httpRequest client.HTTPRequest, global *Global) error {
+func (runner *SegmentRunner) Run(segment *Segment, httpRequest types.HTTPRequest, global *Global) error {
 	if segment.Request != nil {
 		httpRequest = *segment.Request
 	}

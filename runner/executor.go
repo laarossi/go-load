@@ -2,9 +2,8 @@ package runner
 
 import (
 	fmt "fmt"
-	"goload/client"
-	"goload/logger"
-	"goload/metrics"
+	"goload/types"
+	"goload/utils"
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
@@ -12,8 +11,8 @@ import (
 
 type Executor struct {
 	collection      Collection
-	logger          logger.Logger
-	metricCollector metrics.MetricsCollector
+	logger          utils.Logger
+	metricCollector utils.MetricsCollector
 }
 
 func LoadFromYaml(yamlFilePath string) (*Executor, error) {
@@ -42,10 +41,10 @@ func LoadFromYaml(yamlFilePath string) (*Executor, error) {
 }
 
 func (e *Executor) load() error {
-	newLogger, _ := logger.NewLogger("logs")
+	newLogger, _ := utils.NewLogger("logs")
 	e.logger = *newLogger
-	e.metricCollector = metrics.MetricsCollector{
-		LogDir: "logs",
+	e.metricCollector = utils.MetricsCollector{
+		Logger: *newLogger,
 	}
 	return nil
 }
@@ -56,13 +55,22 @@ func (e *Executor) Execute() {
 	if err != nil {
 		_ = fmt.Errorf("error initializing metrics collector: %s", err)
 	}
+	_ = e.logger.Log(fmt.Sprintf("Executing %d tests", len(e.collection.Tests)))
 	for _, test := range e.collection.Tests {
 		if test.Name != nil {
 			fmt.Println("parsing test configuration for ", *test.Name)
 		} else {
 			fmt.Println("parsing test configuration")
 		}
-		for _, phase := range test.Phases {
+		for i, phase := range test.Phases {
+			if phase.Request == nil {
+				phase.Request = &test.Request
+			}
+			_ = e.logger.LogSeparator()
+			_ = e.logger.Log(fmt.Sprintf("Executing phase number : %d", i+1))
+			_ = e.logger.Log(phase.String())
+			_ = e.logger.Log(phase.Request.Summary())
+			_ = e.logger.LogSeparator()
 			err := e.executePhase(phase, test.Request, test.Global)
 			if err != nil {
 				_ = fmt.Errorf("failed to execute phase: %s", err)
@@ -70,14 +78,10 @@ func (e *Executor) Execute() {
 		}
 	}
 	e.metricCollector.StopWorkers()
-	fmt.Println("\nResponse Time Stats:")
-	percentiles := []float32{50, 75, 90, 95, 99}
-	for _, p := range percentiles {
-		e.metricCollector.PrintRequestLatencyPercentiles(p)
-	}
+	e.metricCollector.LogRequestsStats()
 }
 
-func (e *Executor) executePhase(phase Phase, request client.HTTPRequest, global *Global) error {
+func (e *Executor) executePhase(phase Phase, request types.HTTPRequest, global *Global) error {
 	executionSegment, err := ResolvePhase(phase)
 	if err != nil {
 		fmt.Printf("Error resolving phase: %s\n", err)
