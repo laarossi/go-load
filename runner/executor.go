@@ -1,7 +1,7 @@
 package runner
 
 import (
-	"fmt"
+	fmt "fmt"
 	"goload/client"
 	"goload/logger"
 	"goload/metrics"
@@ -47,15 +47,15 @@ func (e *Executor) load() error {
 	e.metricCollector = metrics.MetricsCollector{
 		LogDir: "logs",
 	}
-	err := e.metricCollector.Init()
-	e.metricCollector.StartWorkers()
-	if err != nil {
-		return fmt.Errorf("error initializing metrics collector: %s", err)
-	}
 	return nil
 }
 
 func (e *Executor) Execute() {
+	err := e.metricCollector.Init()
+	e.metricCollector.StartWorkers()
+	if err != nil {
+		_ = fmt.Errorf("error initializing metrics collector: %s", err)
+	}
 	for _, test := range e.collection.Tests {
 		if test.Name != nil {
 			fmt.Println("parsing test configuration for ", *test.Name)
@@ -69,6 +69,8 @@ func (e *Executor) Execute() {
 			}
 		}
 	}
+	e.metricCollector.StopWorkers()
+	e.metricCollector.PrintRequestLatencyPercentiles()
 }
 
 func (e *Executor) executePhase(phase Phase, request client.HTTPRequest, global *Global) error {
@@ -93,8 +95,4 @@ func (e *Executor) executePhase(phase Phase, request client.HTTPRequest, global 
 		executionSegment = executionSegment.Next
 	}
 	return nil
-}
-
-func (e *Executor) Close() {
-	e.metricCollector.Close()
 }
