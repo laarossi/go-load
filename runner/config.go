@@ -1,7 +1,9 @@
 package runner
 
 import (
-	"goload/client"
+	"goload/types"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -11,10 +13,10 @@ type Collection struct {
 }
 
 type Test struct {
-	Name    *string            `yaml:"name"`
-	Global  *Global            `yaml:"global,omitempty"`
-	Request client.HTTPRequest `yaml:"request"`
-	Phases  []Phase            `yaml:"phases"`
+	Name    *string           `yaml:"name"`
+	Global  *Global           `yaml:"global,omitempty"`
+	Request types.HTTPRequest `yaml:"request"`
+	Phases  []Phase           `yaml:"phases"`
 }
 type Global struct {
 	Timeout      time.Duration  `yaml:"timeout,omitempty"` // e.g., "30s"
@@ -23,16 +25,36 @@ type Global struct {
 	ThinkTime    *time.Duration `yaml:"think_time,omitempty"` // Delay between requests per VU
 }
 type Phase struct {
-	Name          *string             `yaml:"name"`
-	SingleRequest *bool               `yaml:"single_request,omitempty"`
-	Duration      *time.Duration      `yaml:"duration,omitempty"`
-	Increment     *time.Duration      `yaml:"increment,omitempty"`
-	IncrementVus  *int                `yaml:"increment_vus,omitempty"`
-	TargetVUs     *int                `yaml:"target_vus,omitempty"`
-	Request       *client.HTTPRequest `yaml:"request"`
+	Name          *string            `yaml:"name"`
+	SingleRequest *bool              `yaml:"single_request,omitempty"`
+	Duration      *time.Duration     `yaml:"duration,omitempty"`
+	Increment     *time.Duration     `yaml:"increment,omitempty"`
+	IncrementVus  *int               `yaml:"increment_vus,omitempty"`
+	TargetVUs     *int               `yaml:"target_vus,omitempty"`
+	Request       *types.HTTPRequest `yaml:"request"`
 }
 
-type LogConfig struct {
-	LogOutputPath  string `yaml:"logOutputPath"`
-	FilenameFormat string `yaml:"filenameFormat"`
+func (p Phase) String() string {
+	var result []string
+
+	if p.Name != nil {
+		result = append(result, "name:"+*p.Name)
+	}
+	if p.SingleRequest != nil {
+		result = append(result, "single_request:"+strconv.FormatBool(*p.SingleRequest))
+	}
+	if p.Duration != nil {
+		result = append(result, "duration:"+p.Duration.String())
+	}
+	if p.Increment != nil {
+		result = append(result, "increment:"+p.Increment.String())
+	}
+	if p.IncrementVus != nil {
+		result = append(result, "increment_vus:"+strconv.Itoa(*p.IncrementVus))
+	}
+	if p.TargetVUs != nil {
+		result = append(result, "target_vus:"+strconv.Itoa(*p.TargetVUs))
+	}
+
+	return strings.Join(result, " | ")
 }
