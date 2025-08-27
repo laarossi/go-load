@@ -59,7 +59,7 @@ func (runner *SegmentRunner) Run(segment *Segment, httpRequest types.HTTPRequest
 				if err != nil {
 					fmt.Printf("error ingesting request metric: %s\n", err)
 				}
-				if global.ThinkTime != nil {
+				if global != nil && global.ThinkTime != nil {
 					time.Sleep(*global.ThinkTime)
 				}
 				wg.Done()

@@ -11,7 +11,7 @@ import (
 )
 
 type Executor struct {
-	collection      Collection
+	Collection      Collection
 	logger          logging.Logger
 	metricCollector metrics.MetricsCollector
 }
@@ -24,19 +24,30 @@ func LoadFromYaml(yamlFilePath string) (*Executor, error) {
 		return &Executor{}, err
 	}
 
-	var collection Collection
-	err = yaml.Unmarshal(yamlFile, &collection)
+	var Collection Collection
+	err = yaml.Unmarshal(yamlFile, &Collection)
 	if err != nil {
 		fmt.Printf("Error parsing YAML: %s\n", err)
 		return &Executor{}, err
 	}
 
 	executor := Executor{
-		collection: collection,
+		Collection: Collection,
 	}
 	err = executor.load()
 	if err != nil {
 		return &Executor{}, err
+	}
+	return &executor, nil
+}
+
+func NewExecutor(Collection Collection) (*Executor, error) {
+	executor := Executor{
+		Collection: Collection,
+	}
+	err := executor.load()
+	if err != nil {
+		return &executor, err
 	}
 	return &executor, nil
 }
@@ -56,10 +67,10 @@ func (e *Executor) Execute() {
 	if err != nil {
 		_ = fmt.Errorf("error initializing metrics collector: %s", err)
 	}
-	_ = e.logger.Log(fmt.Sprintf("Executing %d tests", len(e.collection.Tests)))
-	for _, test := range e.collection.Tests {
-		if test.Name != nil {
-			fmt.Println("parsing test configuration for ", *test.Name)
+	_ = e.logger.Log(fmt.Sprintf("Executing %d tests", len(e.Collection.Tests)))
+	for _, test := range e.Collection.Tests {
+		if test.Name != "" {
+			fmt.Println("parsing test configuration for ", test.Name)
 		} else {
 			fmt.Println("parsing test configuration")
 		}

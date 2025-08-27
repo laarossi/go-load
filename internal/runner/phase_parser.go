@@ -2,33 +2,34 @@ package runner
 
 import (
 	"fmt"
+	"time"
 )
 
 func ResolvePhase(phase Phase) (*Segment, error) {
-	if phase.SingleRequest != nil && *phase.SingleRequest {
+	if phase.SingleRequest {
 		return &Segment{
 			Duration:  nil,
 			TargetVUs: 1,
 		}, nil
 	}
 
-	if phase.Duration == nil && phase.SingleRequest == nil {
+	if phase.Duration == "" && !phase.SingleRequest {
 		return &Segment{}, fmt.Errorf("duration not specified")
 	}
 
-	if phase.Duration != nil && phase.SingleRequest != nil {
+	if phase.Duration != "" && phase.SingleRequest {
 		return &Segment{}, fmt.Errorf("duration parameter cannot be used with single_request")
 	}
 
-	if phase.TargetVUs == nil {
+	if phase.TargetVUs == 0 {
 		return &Segment{}, fmt.Errorf("you must specify target_vus")
 	}
 
-	if phase.Increment != nil && phase.TargetVUs == nil {
+	if phase.Increment != "" && phase.TargetVUs == 0 {
 		return &Segment{}, fmt.Errorf("you must specify target_vus while using increment")
 	}
 
-	if (phase.IncrementVus != nil && phase.Increment == nil) || (phase.IncrementVus == nil && phase.Increment != nil) {
+	if (phase.IncrementVus != 0 && phase.Increment == "") || (phase.IncrementVus == 0 && phase.Increment != "") {
 		return &Segment{}, fmt.Errorf("you must specify increment_vus while using increment")
 	}
 
@@ -37,17 +38,22 @@ func ResolvePhase(phase Phase) (*Segment, error) {
 }
 
 func parsePhase(phase Phase) (*Segment, error) {
-	if phase.SingleRequest != nil && *phase.SingleRequest {
+	if phase.SingleRequest != false && phase.SingleRequest {
 		return parseSingleRequestPhase(phase)
 	}
 
-	if phase.Increment != nil {
+	if phase.Increment != "" {
 		return parseIncrementalPhase(phase)
 	}
 
+	phaseDuration, err := time.ParseDuration(phase.Duration)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Segment{
-		Duration:  phase.Duration,
-		TargetVUs: *phase.TargetVUs,
+		Duration:  &phaseDuration,
+		TargetVUs: phase.TargetVUs,
 		Request:   phase.Request,
 		Next:      nil,
 	}, nil
@@ -63,13 +69,20 @@ func parseSingleRequestPhase(phase Phase) (*Segment, error) {
 
 func parseIncrementalPhase(phase Phase) (*Segment, error) {
 	var headSegment Segment
-	incrementDuration := phase.Increment
-	length := int(phase.Duration.Seconds() / phase.Increment.Seconds())
+	phaseDuration, err := time.ParseDuration(phase.Duration)
+	if err != nil {
+		return nil, err
+	}
+	incrementDuration, err := time.ParseDuration(phase.Duration)
+	if err != nil {
+		return nil, err
+	}
+	length := int(phaseDuration.Seconds() / incrementDuration.Seconds())
 	var previousSegment *Segment
 	for i := 0; i < length; i++ {
 		segment := Segment{
-			Duration:  incrementDuration,
-			TargetVUs: *phase.TargetVUs + i**phase.IncrementVus,
+			Duration:  &incrementDuration,
+			TargetVUs: phase.TargetVUs + i*phase.IncrementVus,
 			Request:   phase.Request,
 		}
 

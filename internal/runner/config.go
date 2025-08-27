@@ -13,7 +13,7 @@ type Collection struct {
 }
 
 type Test struct {
-	Name    *string           `yaml:"name"`
+	Name    string            `yaml:"name"`
 	Global  *Global           `yaml:"global,omitempty"`
 	Request types.HTTPRequest `yaml:"request"`
 	Phases  []Phase           `yaml:"phases"`
@@ -25,35 +25,35 @@ type Global struct {
 	ThinkTime    *time.Duration `yaml:"think_time,omitempty"` // Delay between requests per VU
 }
 type Phase struct {
-	Name          *string            `yaml:"name"`
-	SingleRequest *bool              `yaml:"single_request,omitempty"`
-	Duration      *time.Duration     `yaml:"duration,omitempty"`
-	Increment     *time.Duration     `yaml:"increment,omitempty"`
-	IncrementVus  *int               `yaml:"increment_vus,omitempty"`
-	TargetVUs     *int               `yaml:"target_vus,omitempty"`
+	Name          string             `yaml:"name"`
+	SingleRequest bool               `yaml:"single_request,omitempty"`
+	Duration      string             `yaml:"duration,omitempty"`
+	Increment     string             `yaml:"increment,omitempty"`
+	IncrementVus  int                `yaml:"increment_vus,omitempty"`
+	TargetVUs     int                `yaml:"target_vus,omitempty"`
 	Request       *types.HTTPRequest `yaml:"request"`
 }
 
 func (p Phase) String() string {
 	var result []string
 
-	if p.Name != nil {
-		result = append(result, "name:"+*p.Name)
+	if p.Name != "" {
+		result = append(result, "name:"+p.Name)
 	}
-	if p.SingleRequest != nil {
-		result = append(result, "single_request:"+strconv.FormatBool(*p.SingleRequest))
+	if p.SingleRequest == true {
+		result = append(result, "single_request:"+strconv.FormatBool(p.SingleRequest))
 	}
-	if p.Duration != nil {
-		result = append(result, "duration:"+p.Duration.String())
+	if p.Duration != "" {
+		result = append(result, "duration:"+p.Duration)
 	}
-	if p.Increment != nil {
-		result = append(result, "increment:"+p.Increment.String())
+	if p.Increment != "" {
+		result = append(result, "increment:"+p.Increment)
 	}
-	if p.IncrementVus != nil {
-		result = append(result, "increment_vus:"+strconv.Itoa(*p.IncrementVus))
+	if p.IncrementVus != 0 {
+		result = append(result, "increment_vus:"+strconv.Itoa(p.IncrementVus))
 	}
-	if p.TargetVUs != nil {
-		result = append(result, "target_vus:"+strconv.Itoa(*p.TargetVUs))
+	if p.TargetVUs != 0 {
+		result = append(result, "target_vus:"+strconv.Itoa(p.TargetVUs))
 	}
 
 	return strings.Join(result, " | ")

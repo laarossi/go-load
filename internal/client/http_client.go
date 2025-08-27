@@ -16,7 +16,7 @@ type Client struct {
 type RequestOptions struct {
 	Headers []types.HTTPClientHeader
 	Cookies []types.HTTPClientCookie
-	Body    *string
+	Body    string
 }
 
 func (c *Client) ExecuteRequest(req *http.Request) (*types.HTTPResponse, error) {
