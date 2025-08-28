@@ -18,6 +18,13 @@ type Test struct {
 	Request types.HTTPRequest `yaml:"request"`
 	Phases  []Phase           `yaml:"phases"`
 }
+
+type CheckCondition struct {
+	Name    int                      `yaml:"status_code"`
+	Headers []types.HTTPClientHeader `yaml:"headers"`
+	Body    string                   `yaml:"body"`
+}
+
 type Global struct {
 	Timeout      time.Duration  `yaml:"timeout,omitempty"` // e.g., "30s"
 	Retries      int            `yaml:"retries,omitempty"` // Number of retries per request
